@@ -45,6 +45,14 @@ button:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .msg{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:28px 16px;text-align:center;color:var(--mu);box-shadow:var(--sh)}
 .msg.bad{color:var(--er)}
+.form{max-width:460px;margin:0 auto}
+.form label{display:block;margin:6px 0 0;font-weight:800;font-size:.9rem}
+.form input{width:100%;padding:12px 14px;border:1px solid var(--bd);border-radius:13px;background:var(--in);color:var(--tx);font:inherit}
+.form input:focus{outline:0;border-color:var(--pr);box-shadow:0 0 0 4px var(--glow)}
+button.ghost{background:transparent;color:var(--tx);border:1px solid var(--bd);box-shadow:none}
+.err{margin:0;padding:10px 14px;border-radius:13px;background:color-mix(in srgb,var(--er) 12%,transparent);border:1px solid color-mix(in srgb,var(--er) 35%,transparent);color:var(--er);font-size:.88rem}
+.err:empty{display:none}
+.btn-link{display:block;text-align:center;text-decoration:none;padding:12px;border-radius:14px;background:linear-gradient(135deg,var(--pr),var(--pr2));color:#fff;font-weight:800;box-shadow:0 8px 20px var(--glow)}
 .toast{position:fixed;inset-inline:16px;inset-block-end:16px;margin-inline:auto;width:fit-content;max-width:90vw;background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:13px;box-shadow:var(--sh);font-size:.9rem}
 </style>
 </head>

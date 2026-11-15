@@ -32,6 +32,45 @@
     parent.postMessage({ type: "plans:height", height: Math.ceil(document.documentElement.getBoundingClientRect().height) }, "*");
   }
 
+
+  // ---- نموذج الاشتراك: يطلب رابط الدفع من الخادم ثم ينتقل إليه (لا تفعيل من هنا) ----
+  function checkout(plan, siteId, title, top, grid, finalPrice) {
+    const f = (id, label, type, extra = {}) => { const i = h("input"); i.id = id; i.type = type; Object.assign(i, extra); return [h("label", "", label), i]; };
+    const [ln, name] = f("fn", "الاسم الكامل", "text", { maxLength: 160, autocomplete: "name" });
+    const [le, email] = f("fe", "البريد الإلكتروني", "email", { autocomplete: "email" }); email.dir = "ltr";
+    const [lp, phone] = f("fp", "الهاتف (اختياري)", "tel", { autocomplete: "tel" }); phone.dir = "ltr";
+    const err = h("p", "err"); err.setAttribute("role", "alert");
+    const go = h("button"); go.type = "button"; go.textContent = "المتابعة إلى الدفع";
+    const back = h("button", "ghost"); back.type = "button"; back.textContent = "رجوع";
+    back.addEventListener("click", () => { app.replaceChildren(top, grid); sendHeight(); });
+    const hint = h("p", "d", "استعمل نفس بريد Google الذي تدخل به إلى الموقع، ليرتبط اشتراكك بحسابك.");
+    const box = h("div", "plan form", h("h2", "", "الاشتراك في «" + plan.name + "»"),
+      h("p", "d", num(finalPrice) + " " + plan.currency), ln, name, le, email, lp, phone, hint, err, go, back);
+    app.replaceChildren(top, box); sendHeight();
+    const EM = /^[^@\s]+@[^@\s]+\.[^@\s]+$/, PH = /^[0-9+\s-]{6,20}$/;
+    const MSG = { rate_limited: "محاولات كثيرة. حاول بعد قليل.", gateway_error: "تعذّر إنشاء عملية الدفع. حاول لاحقاً.",
+      gateway_unreachable: "بوابة الدفع غير متاحة الآن. حاول لاحقاً.", price_not_payable: "هذه الباقة غير قابلة للدفع الإلكتروني حالياً.",
+      currency_not_supported: "عملة الباقة غير مدعومة في الدفع الإلكتروني.", plan_unavailable: "هذه الباقة لم تعد متاحة.", site_unavailable: "هذا الموقع غير متاح." };
+    go.addEventListener("click", async () => {
+      err.textContent = "";
+      if (name.value.trim().length < 2) return (err.textContent = "اكتب اسمك الكامل.");
+      if (!EM.test(email.value.trim())) return (err.textContent = "البريد الإلكتروني غير صالح.");
+      if (phone.value.trim() && !PH.test(phone.value.trim())) return (err.textContent = "رقم الهاتف غير صالح.");
+      go.disabled = true; go.textContent = "جارٍ التجهيز…";
+      try {
+        const r = await fetch(CONFIG.SUPABASE_URL + "/functions/v1/create-checkout", {
+          method: "POST", headers: { "Content-Type": "application/json", apikey: CONFIG.SUPABASE_KEY },
+          body: JSON.stringify({ site_id: siteId, plan_id: plan.id, full_name: name.value.trim(), email: email.value.trim(), phone: phone.value.trim() }) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.checkout_url || !/^https:\/\//.test(d.checkout_url)) throw new Error(MSG[d.error] || "تعذّر بدء الدفع. حاول لاحقاً.");
+        if (EMBED && parent !== window) {
+          const a = h("a", "btn-link", "الذهاب إلى صفحة الدفع"); a.href = d.checkout_url; a.target = "_top"; a.rel = "noopener";
+          go.replaceWith(a); back.remove(); sendHeight();
+        } else location.href = d.checkout_url;
+      } catch (e) { err.textContent = e.message; go.disabled = false; go.textContent = "المتابعة إلى الدفع"; }
+    });
+  }
+
   async function main() {
     const siteId = Q.get("site") || "";
     if (!UUID.test(siteId)) return msg("رابط غير صالح: معرّف الموقع مفقود.", true);
@@ -79,10 +118,7 @@
         list.append(h("li", r ? "" : "no", ic(r ? "check" : "x"), h("span", "", ft.label, extra && " ", extra && h("small", "", "(" + extra + ")"))));
       }
       const buy = h("button"); buy.type = "button"; buy.textContent = "اشترك";
-      buy.addEventListener("click", () => {
-        if (EMBED && parent !== window) parent.postMessage({ type: "plans:subscribe", site: siteId, plan: plan.id }, "*");
-        else toast("الاشتراك عبر الدفع الإلكتروني سيُفعَّل قريباً.");
-      });
+      buy.addEventListener("click", () => checkout(plan, siteId, title, top, grid, disc ? plan.final_price : plan.price));
       grid.append(h("article", "plan", h("h2", "", plan.name), plan.description && h("p", "d", plan.description),
         price, disc && h("span", "off", "تخفيض"), list, buy));
     }
