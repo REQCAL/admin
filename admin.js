@@ -146,13 +146,50 @@ window.Admin = (() => {
       toast("تم الحفظ"); nav(); return null;
     });
   }
+  // ---------- API key + embed (per site) ----------
+  const copy = async (text, btnEl) => {
+    try { await navigator.clipboard.writeText(text); toast("تم النسخ"); } catch (e) { const i = btnEl && btnEl.closest("dialog").querySelector("input,textarea"); if (i) { i.select(); } toast("انسخ النص يدوياً", true); }
+  };
+  function infoDialog(title, intro, fields) {
+    const dlg = h("dialog", { class: "modal" }, h("h1", {}, title), h("p", {}, intro),
+      fields.map((f) => { const el = h(f.area ? "textarea" : "input", { readonly: true, dir: "ltr", rows: f.area ? 4 : null, value: f.area ? null : f.v }, f.area ? f.v : null);
+        const b = btn("نسخ", () => copy(f.v, b), "sm"); return h("label", {}, f.l, el, h("div", { class: "acts", style: "margin-top:8px" }, b)); }),
+      h("div", { class: "acts" }, btn("إغلاق", () => dlg.close(), "pri")));
+    dlg.addEventListener("close", () => dlg.remove());
+    document.body.append(dlg); dlg.showModal();
+  }
+  async function rotateKey(s) {
+    const had = !!s.api_key_prefix;
+    if (!confirm(had ? "توليد مفتاح جديد لـ «" + s.name + "»؟\nالمفتاح القديم يتوقف عن العمل فوراً." : "توليد مفتاح API لـ «" + s.name + "»؟")) return;
+    const { data, error } = await sb.functions.invoke("rotate-api-key", { body: { site_id: s.id } });
+    if (error || !data || !data.api_key) {
+      let m = "تعذّر توليد المفتاح.";
+      const st = error && error.context && error.context.status;
+      if (st === 404) m = "الدالة rotate-api-key غير منشورة بعد في Supabase.";
+      else if (st === 403) m = "لا تملك صلاحية (يلزم دور مالك/أدمن وتحقق بخطوتين).";
+      return toast(m, true);
+    }
+    infoDialog("مفتاح API الجديد", "انسخه الآن واحفظه في مكان آمن. لن يظهر مرة أخرى، وإن ضاع ولّد مفتاحاً جديداً.",
+      [{ l: "المفتاح الكامل", v: data.api_key }]);
+    nav();
+  }
+  function embedInfo(s) {
+    const base = new URL("plans.html", location.href); base.search = "?site=" + s.id;
+    const js = new URL("embed.js", location.href).href;
+    infoDialog("تضمين صفحة الباقات", "ضع الرابط في أي زر، أو ألصق الكود داخل صفحة الموقع.", [
+      { l: "رابط الصفحة المباشر", v: base.href },
+      { l: "كود التضمين", v: '<div id="plans-box"></div>\n<script src="' + js + '" data-site="' + s.id + '" data-target="plans-box"></script>', area: true }]);
+  }
   async function pageSites(el) {
     const { data, error } = await sb.from("sites").select(SITE_COLS).order("created_at");
     if (error) return el.append(h("p", { class: "err" }, dbErr(error)));
-    const cols = ["الموقع", "النطاق", "النطاقات المسموحة", "الحالة"].concat(canEdit ? ["إجراءات"] : []);
+    const cols = ["الموقع", "النطاق", "النطاقات المسموحة", "مفتاح API", "الحالة"].concat(canEdit ? ["إجراءات"] : []);
     el.append(head("المواقع", canEdit && btn("موقع جديد", () => siteForm(), "pri", "plus")),
-      tbl(cols, data.map((s) => [s.name, s.domain || "-", String(s.allowed_origins.length), tag(s.is_active)]
-        .concat(canEdit ? [actions("sites", s, () => siteForm(s))] : [])), canEdit && (() => siteForm()), "موقع جديد"));
+      tbl(cols, data.map((s) => [s.name, s.domain || "-", String(s.allowed_origins.length),
+        h("span", { class: "key" }, s.api_key_prefix ? s.api_key_prefix + "…" : "لا يوجد"), tag(s.is_active)]
+        .concat(canEdit ? [h("span", { class: "acts0" }, actions("sites", s, () => siteForm(s)),
+          btn(s.api_key_prefix ? "تدوير المفتاح" : "مفتاح API", () => rotateKey(s), "sm"),
+          btn("تضمين", () => embedInfo(s), "sm"))] : [])), canEdit && (() => siteForm()), "موقع جديد"));
   }
 
   // ---------- Plans ----------
